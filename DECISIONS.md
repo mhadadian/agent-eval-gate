@@ -75,8 +75,49 @@ Running notes. Newest at the bottom.
   reusing stale results. .env.example is committed; .env is not.
 - Rejected: a YAML/JSON config file. One more file to explain, and .env already exists.
 
-## Pending approval (critical)
+## 6. First live run (approved: judge = claude-fable-5-1, effort high)
 
-- Model claude-opus-5 and the first live run (12 calls).
-- Gate rule as in 4.
-- Note: .env currently fails to parse (unmatched quote). Shell env carries the key for now.
+Result: `./run.sh` exits 1. BLOCK v2.5. 12 calls, ~27 s, cache committed so `./run.sh --offline`
+reproduces it with no API.
+
+| input                | v2.4      | v2.5      | judged change                                  |
+|----------------------|-----------|-----------|------------------------------------------------|
+| odds-engine#312      | 4         | 1         | REGRESSION verdict 4 -> 1 (v2.5: "no issues")  |
+| checkout-api#487     | 3         | 1         | REGRESSION blocker (TOCTOU race) lost          |
+| ALT-90412            | correct   | correct   |                                                |
+| ALT-90418            | incorrect | correct   | improvement: canary now ticketed, not paged    |
+| user-service#201     | 4         | 5         | improvement                                    |
+| user-service#214     | 5         | 2         | REGRESSION blocker (SQL injection) lost        |
+
+Answer for this upgrade: v2.5 hurt. It fixed the one triage mistake and one review, and lost
+the blocker on three of four PRs, including a SQL injection. Do not ship.
+
+Judge vs human: train 3/4, test 2/3. The two disagreements:
+- exec-005 (train): judge rates the unbounded sessions map as major, human as blocker. Verdict 4
+  vs 3, within 1, but blocker-found differs. Severity calibration, not a missed finding.
+  Not tuned away: doing so would mean writing the answer into the prompt.
+- exec-002 (test): judge 3 vs human 5. The judge found a second blocker the human did not list:
+  `r.inflight[payment.ID] = true` at line 49 is never cleared, so after one retry the payment is
+  permanently ErrAlreadyInflight. I checked the diff and agree with the judge. **I disagree with
+  the human label here** (allowed by labels._about; label left unedited). If the labeller agrees,
+  the test agreement becomes 3/3 and the only remaining block reasons are the three regressions.
+
+Bugs fixed during the run:
+- exec-101 first came back with review_verdict null and rationale "placeholder". The schema
+  allows null (the other graph's field). judge.py now retries once and fails loudly; main.py
+  treats a missing verdict as a block reason rather than crashing.
+
+Unsure / would do next with more time:
+- Severity calibration between judge and labeller (blocker vs major) is the weakest link. A
+  second labeller, or a written severity guide for "unbounded growth" style defects, would settle it.
+- Judge non-determinism: one run. Run 3x and gate on the majority verdict.
+- Latency/tokens are in the traces and unused. Cheap to add as a secondary signal.
+- The judge saw both versions' outputs in separate calls; a pairwise "which is better" call
+  would be a useful cross-check but is a different (comparative) rubric.
+
+## Order of work and why
+1. Read everything, map the label coverage (found that human labels alone would say "helped").
+2. Pairing on input identity, asserted equal LLM input (apples to apples).
+3. No-leakage judge with a train/test split, so it runs on next month's fresh inputs.
+4. Gate rule on per-pair regressions, not averages.
+5. run.sh, cache, .env knobs. Then the live run.

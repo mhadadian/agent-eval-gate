@@ -119,6 +119,49 @@
     "rationale": "The alert is a known flapping synthetic canary with explicit evidence of zero real-traffic impact and an existing tracking incident; paging would be noise. The agent correctly chose ticket, attached to INC-4410, and gave a sensible escalation condition (error rate moving off zero). Only gaps are not questioning whether INC-4410 is still active and not adding a time-based escalation if the check doesn't auto-resolve within its usual window. Confidence of 0.58 is somewhat low given the clear evidence, but the decision is right.",
     "review_verdict": null
   },
+  "a22334a396abf123": {
+    "_meta": {
+      "effort": "high",
+      "execution_id": "exec-101",
+      "key": "a22334a396abf123",
+      "model": "claude-fable-5-1",
+      "prompt_version": "p1"
+    },
+    "agent_wrong": [
+      "Line 26 comment: 'The bound at this line looks correct as written' \u2014 the strict `1.0 <= total` float comparison is brittle and `self.max_margin` is not shown to exist; certifying it as correct is unsupported.",
+      "Summary says 'No issues found' while `issues_found` is 1 and one comment is tagged 'warning' \u2014 internally contradictory output.",
+      "Line 16 'Looks good, clean implementation' overlooks division-by-zero and missing input validation in `apply_margin`."
+    ],
+    "classification_verdict": null,
+    "findings": [
+      {
+        "agent_found": false,
+        "agent_severity_ok": false,
+        "item": "Line 26: `return 1.0 <= total <= 1.0 + self.max_margin` uses a strict floating-point lower bound. Summing `1/o` for a genuinely fair market can land at 0.999999... and be rejected; also a hard `<=` upper bound with no tolerance. Needs an epsilon/tolerance or explicit rounding policy (the class already rounds odds to 2dp elsewhere, line 14).",
+        "severity": "major"
+      },
+      {
+        "agent_found": false,
+        "agent_severity_ok": false,
+        "item": "Lines 17-19 and 22: unguarded division. `implied_probability` raises ZeroDivisionError for odds == 0 and returns probability > 1 for odds < 1; `apply_margin` divides by `target_prob` which is zero when `margin == -total_prob`, and by each odd. No validation that odds >= 1 or margin >= 0 in money-handling code.",
+        "severity": "major"
+      },
+      {
+        "agent_found": false,
+        "agent_severity_ok": false,
+        "item": "Line 26 references `self.max_margin`, which is not defined anywhere in the diff or visible class context. Is it set in `__init__`? If not, `validate_market` raises AttributeError on first call.",
+        "severity": "question"
+      },
+      {
+        "agent_found": true,
+        "agent_severity_ok": true,
+        "item": "Inconsistent margin semantics: `apply_margin` adds `margin` on top of whatever `total_prob` the inputs already have (line 18), while `validate_market` measures margin relative to exactly 1.0 (line 26). If `fair_odds` don't sum to exactly 1.0, the applied margin and validated margin disagree. Docstrings and tests would help; none added.",
+        "severity": "nit"
+      }
+    ],
+    "rationale": "The agent produced two comments, one of which is pure praise and the other affirms the most questionable line (the strict float bound with an undefined-in-diff `max_margin`) as correct while suggesting only a docstring. It missed the float-precision fragility of `validate_market`, the unguarded divisions in `implied_probability`/`apply_margin`, and never asked whether `self.max_margin` exists. The only overlap with a real finding is the generic docstring nit. Its summary also contradicts its own issue count. Nothing substantive was found, so verdict 1.",
+    "review_verdict": 1
+  },
   "a3b084636ead0004": {
     "_meta": {
       "effort": "high",
