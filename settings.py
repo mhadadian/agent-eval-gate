@@ -14,7 +14,8 @@ def _bool(name: str, default: bool) -> bool:
 
 
 # --- judge ---
-JUDGE_MODEL = os.environ.get("JUDGE_MODEL", "claude-opus-5")
+JUDGE_MODEL = os.environ.get("JUDGE_MODEL", "claude-fable-5-1")
+JUDGE_FALLBACKS = _bool("JUDGE_FALLBACKS", True)               # server-side refusal fallback (Fable/Opus 5)
 JUDGE_EFFORT = os.environ.get("JUDGE_EFFORT", "high")          # low | medium | high | xhigh | max
 JUDGE_MAX_TOKENS = int(os.environ.get("JUDGE_MAX_TOKENS", "16000"))
 JUDGE_PROMPT_VERSION = os.environ.get("JUDGE_PROMPT_VERSION", "p1")   # part of the cache key
@@ -31,7 +32,7 @@ GATE_REQUIRE_JUDGE_AGREEMENT = _bool("GATE_REQUIRE_JUDGE_AGREEMENT", True)  # bl
 
 
 def describe() -> str:
-    return (f"judge={JUDGE_MODEL} effort={JUDGE_EFFORT} prompt={JUDGE_PROMPT_VERSION} "
+    return (f"judge={JUDGE_MODEL} effort={JUDGE_EFFORT} prompt={JUDGE_PROMPT_VERSION} fallbacks={JUDGE_FALLBACKS} "
             f"cache={JUDGE_CACHE.name} offline={JUDGE_OFFLINE} | "
             f"{BASELINE_VERSION} -> {CANDIDATE_VERSION} | "
             f"verdict_drop>={GATE_VERDICT_DROP} require_agreement={GATE_REQUIRE_JUDGE_AGREEMENT}")

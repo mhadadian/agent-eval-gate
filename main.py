@@ -118,7 +118,9 @@ def compare(pairs: list, judgements: dict) -> tuple[list[str], list[str]]:
         jb, jc = judgements[b["execution_id"]], judgements[c["execution_id"]]
         vb, vc = j_verdict(jb, g), j_verdict(jc, g)
         note = ""
-        if g == "pr-review":
+        if vb is None or vc is None:
+            note = f"REGRESSION: judge produced no verdict ({vb} -> {vc}); cannot clear the upgrade"
+        elif g == "pr-review":
             if j_blocker_found(jb) and not j_blocker_found(jc):
                 note = "REGRESSION: blocker found by baseline, missed by candidate"
             elif int(vc) <= int(vb) - GATE_VERDICT_DROP:

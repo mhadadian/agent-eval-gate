@@ -10,7 +10,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from settings import (JUDGE_CACHE as CACHE_PATH, JUDGE_EFFORT, JUDGE_MAX_TOKENS,
+from settings import (JUDGE_CACHE as CACHE_PATH, JUDGE_EFFORT, JUDGE_FALLBACKS, JUDGE_MAX_TOKENS,
                       JUDGE_MODEL as MODEL, JUDGE_OFFLINE, JUDGE_PROMPT_VERSION as PROMPT_VERSION)
 
 # Split of the six inputs. Tuning happens on TRAIN only; TEST is scored once, at the end.
@@ -100,12 +100,19 @@ def judge(execution: dict, node: dict, offline: bool = False) -> dict:
 
     from langchain_anthropic import ChatAnthropic  # lazy so the offline path needs no key
 
-    llm = ChatAnthropic(model=MODEL, max_tokens=JUDGE_MAX_TOKENS, output_config={"effort": JUDGE_EFFORT})
+    extra = {}
+    if JUDGE_FALLBACKS:  # on a safety refusal, the API re-runs on a fallback model in the same call
+        extra = {"betas": ["server-side-fallback-2026-07-01"], "model_kwargs": {"fallbacks": "default"}}
+    llm = ChatAnthropic(model=MODEL, max_tokens=JUDGE_MAX_TOKENS, output_config={"effort": JUDGE_EFFORT}, **extra)
     structured = llm.with_structured_output(Judgement, method="json_schema")
-    result: Judgement = structured.invoke([
-        ("system", SYSTEM),
-        ("human", _user_message(execution["graph_id"], node)),
-    ])
+    messages = [("system", SYSTEM), ("human", _user_message(execution["graph_id"], node))]
+    need = "review_verdict" if execution["graph_id"] == "pr-review" else "classification_verdict"
+    for attempt in range(2):  # the schema allows null for the other graph's field; the needed one must be set
+        result: Judgement = structured.invoke(messages)
+        if getattr(result, need) is not None:
+            break
+    else:
+        raise SystemExit(f"{execution['execution_id']}: judge returned no {need} after 2 attempts")
     out = result.model_dump()
     out["_meta"] = {"execution_id": execution["execution_id"], "model": MODEL,
                     "prompt_version": PROMPT_VERSION, "effort": JUDGE_EFFORT, "key": key}
