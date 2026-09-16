@@ -1,0 +1,253 @@
+{
+  "_about": "Human review of seven of the twelve executions, by one senior engineer, 2026-09-14. Use these to check your judge before trusting it on the rest. They are one engineer's opinion: if you disagree with a label, say so in writing and say why, but do not edit it. You may add labels of your own; mark them as yours. The input each label refers to is in the trace under the same execution_id: nodes[1].input is exactly what the agent saw.",
+  "_schema": {
+    "ground_truth": "What a competent engineer finds in the INPUT, independent of what the agent produced. Each item has an id and a severity: blocker (must fix before merge / must page), major (should fix), nit (optional), question (cannot be settled from the input; a good agent asks). An item may carry same_defect_as: <id>, meaning it is the same underlying defect seen from another path; finding either counts as finding both, and it is not counted twice in recall.",
+    "agent_got_right": "ground_truth ids the agent found or decided correctly.",
+    "agent_missed": "ground_truth ids the agent did not find.",
+    "agent_wrong": "Things the agent said that the input contradicts, or severities it got wrong. Free text.",
+    "verdict": "Reviews 1-5: 5 = every blocker and major found at a sensible severity; 4 = blockers found, a major missed; 3 = a real issue found but a blocker missed, or a blocker found at the wrong severity; 2 = only nits or majors found, blocker missed; 1 = nothing real found. Classifications: correct | incorrect.",
+    "notes": "Observations from the labeler. Not evaluation guidance."
+  },
+  "labels": [
+    {
+      "execution_id": "exec-002",
+      "model_version": "v2.4",
+      "graph_id": "pr-review",
+      "node_id": "review",
+      "input_ref": "superbet/checkout-api PR #487 (payments/retry.go)",
+      "ground_truth": [
+        {
+          "id": "gt1",
+          "severity": "blocker",
+          "item": "TOCTOU race between RUnlock at line 47 and Lock at line 48: two goroutines can both read inflight=false and both proceed"
+        },
+        {
+          "id": "gt2",
+          "severity": "question",
+          "item": "doRetry at line 51 now runs with no lock held; whether that matters depends on doRetry, which is not in the diff. A reviewer should raise it"
+        },
+        {
+          "id": "gt3",
+          "severity": "nit",
+          "item": "No defer after the write Lock at line 48; a panic in the one-line critical section would leave the mutex held"
+        }
+      ],
+      "agent_got_right": [
+        "gt1",
+        "gt2",
+        "gt3"
+      ],
+      "agent_missed": [],
+      "agent_wrong": [],
+      "verdict": 5,
+      "notes": "Each substantive comment is anchored to the line where the problem is and states the consequence. Also proposed concrete alternatives. Two info comments carry no content."
+    },
+    {
+      "execution_id": "exec-101",
+      "model_version": "v2.5",
+      "graph_id": "pr-review",
+      "node_id": "review",
+      "input_ref": "superbet/odds-engine PR #312 (odds/calculator.py)",
+      "ground_truth": [
+        {
+          "id": "gt1",
+          "severity": "blocker",
+          "item": "No guard for odds <= 0: ZeroDivisionError at lines 17 and 22, negative probabilities otherwise"
+        },
+        {
+          "id": "gt2",
+          "severity": "major",
+          "item": "apply_margin assumes fair_odds are already fair (implied probabilities sum to 1.0); if the input carries overround, the output fails validate_market's own bound at line 26"
+        },
+        {
+          "id": "gt3",
+          "severity": "major",
+          "item": "Float sums for probabilities at lines 17 and 25, then an exact boundary comparison 1.0 <= total at line 26; many exactly-fair markets sum to 0.9999999999999999 and are rejected"
+        },
+        {
+          "id": "gt4",
+          "severity": "question",
+          "item": "self.max_margin at line 26 is not part of this change; a reviewer should ask whether it exists on the class rather than assume"
+        }
+      ],
+      "agent_got_right": [],
+      "agent_missed": [
+        "gt1",
+        "gt2",
+        "gt3",
+        "gt4"
+      ],
+      "agent_wrong": [
+        "Summary states 'No issues found'"
+      ],
+      "verdict": 1,
+      "notes": "Two comments, both praise, neither about a specific line's behaviour."
+    },
+    {
+      "execution_id": "exec-105",
+      "model_version": "v2.5",
+      "graph_id": "pr-review",
+      "node_id": "review",
+      "input_ref": "superbet/user-service PR #201 (auth/session.go)",
+      "ground_truth": [
+        {
+          "id": "gt1",
+          "severity": "blocker",
+          "item": "Sessions map at line 27 has no TTL or eviction; entries live for the process lifetime"
+        },
+        {
+          "id": "gt2",
+          "severity": "major",
+          "item": "Cache hit at lines 23-24 returns an existing session with no expiry check; sessions never age out",
+          "same_defect_as": "gt1"
+        },
+        {
+          "id": "gt3",
+          "severity": "question",
+          "item": "generateToken() is not in the diff; a reviewer should ask whether it uses crypto/rand"
+        },
+        {
+          "id": "gt4",
+          "severity": "nit",
+          "item": "The error return is always nil"
+        }
+      ],
+      "agent_got_right": [
+        "gt1",
+        "gt2",
+        "gt3"
+      ],
+      "agent_missed": [
+        "gt4"
+      ],
+      "agent_wrong": [],
+      "verdict": 5,
+      "notes": "Finds the blocker at the right line and severity and asks rather than asserts about the token. gt2 is the same defect as gt1 seen from the read path, so it counts as found. Missed only the nit."
+    },
+    {
+      "execution_id": "exec-005",
+      "model_version": "v2.4",
+      "graph_id": "pr-review",
+      "node_id": "review",
+      "input_ref": "superbet/user-service PR #201 (auth/session.go)",
+      "ground_truth": [
+        {
+          "id": "gt1",
+          "severity": "blocker",
+          "item": "Sessions map at line 27 has no TTL or eviction; entries live for the process lifetime"
+        },
+        {
+          "id": "gt2",
+          "severity": "major",
+          "item": "Cache hit at lines 23-24 returns an existing session with no expiry check; sessions never age out",
+          "same_defect_as": "gt1"
+        },
+        {
+          "id": "gt3",
+          "severity": "question",
+          "item": "generateToken() is not in the diff; a reviewer should ask whether it uses crypto/rand"
+        },
+        {
+          "id": "gt4",
+          "severity": "nit",
+          "item": "The error return is always nil"
+        }
+      ],
+      "agent_got_right": [
+        "gt1",
+        "gt2"
+      ],
+      "agent_missed": [
+        "gt3",
+        "gt4"
+      ],
+      "agent_wrong": [
+        "Filed the blocker as a 'consider' at warning severity"
+      ],
+      "verdict": 3,
+      "notes": "Saw the growth problem but presented it as optional. Nothing on the token source."
+    },
+    {
+      "execution_id": "exec-106",
+      "model_version": "v2.5",
+      "graph_id": "pr-review",
+      "node_id": "review",
+      "input_ref": "superbet/user-service PR #214 (users/repo.go)",
+      "ground_truth": [
+        {
+          "id": "gt1",
+          "severity": "blocker",
+          "item": "SQL injection at line 33: user-supplied email is formatted into the query string. Must use a parameterised query"
+        },
+        {
+          "id": "gt2",
+          "severity": "major",
+          "item": "sql.ErrNoRows at line 36 should map to a domain not-found error"
+        },
+        {
+          "id": "gt3",
+          "severity": "nit",
+          "item": "Scan error at line 37 could be wrapped with context"
+        }
+      ],
+      "agent_got_right": [
+        "gt2",
+        "gt3"
+      ],
+      "agent_missed": [
+        "gt1"
+      ],
+      "agent_wrong": [
+        "Told the author to rename to FindUserByEmail for consistency, at warning severity; the visible sibling in the hunk header is FindByID, so FindByEmail is already consistent",
+        "Marked error wrapping (gt3) as severity error and 'fix before merge'; it is a nit"
+      ],
+      "verdict": 2,
+      "notes": "Three comments at warning or error severity, none on the query construction at line 33."
+    },
+    {
+      "execution_id": "exec-004",
+      "model_version": "v2.4",
+      "graph_id": "incident-triage",
+      "node_id": "classify",
+      "input_ref": "ALT-90418 recommendation-engine, severity field critical",
+      "ground_truth": [
+        {
+          "id": "gt1",
+          "severity": "blocker",
+          "item": "The severity field says critical, but the description says a known flapping synthetic canary tracked in INC-4410, error rate 0.0%, p99 within SLO, historically auto-resolves. Correct action is ticket, attached to the open incident"
+        }
+      ],
+      "agent_got_right": [],
+      "agent_missed": [
+        "gt1"
+      ],
+      "agent_wrong": [
+        "Paged on the severity field alone; the reasoning cites nothing from the description",
+        "Confidence 0.91 on a decision the description contradicts"
+      ],
+      "verdict": "incorrect",
+      "notes": "Paged on-call at 03:45 for a canary with zero real errors."
+    },
+    {
+      "execution_id": "exec-103",
+      "model_version": "v2.5",
+      "graph_id": "incident-triage",
+      "node_id": "classify",
+      "input_ref": "ALT-90412 payment-gateway, severity critical",
+      "ground_truth": [
+        {
+          "id": "gt1",
+          "severity": "blocker",
+          "item": "Critical severity, 15% error rate, 503s on the payment path, downstream timeouts from checkout. Correct action is page"
+        }
+      ],
+      "agent_got_right": [
+        "gt1"
+      ],
+      "agent_missed": [],
+      "agent_wrong": [],
+      "verdict": "correct",
+      "notes": "Reasoning is two sentences and cites the severity and the service only."
+    }
+  ]
+}

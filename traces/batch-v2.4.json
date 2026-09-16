@@ -1,0 +1,422 @@
+[
+  {
+    "execution_id": "exec-001",
+    "graph_id": "pr-review",
+    "model_version": "v2.4",
+    "timestamp": "2026-09-13T14:22:00Z",
+    "nodes": [
+      {
+        "node_id": "fetch-diff",
+        "agent": "github",
+        "type": "tool",
+        "input": {
+          "repo": "superbet/odds-engine",
+          "pr": 312
+        },
+        "output": {
+          "diff": "--- a/odds/calculator.py\n+++ b/odds/calculator.py\n@@ -14,3 +14,15 @@ class OddsCalculator:\n         return round(odds, 2)\n \n+    def apply_margin(self, fair_odds: list[float], margin: float) -> list[float]:\n+        total_prob = sum(1/o for o in fair_odds)\n+        target_prob = total_prob + margin\n+        return [o * total_prob / target_prob for o in fair_odds]\n+\n+    def implied_probability(self, odds: float) -> float:\n+        return 1 / odds\n+\n+    def validate_market(self, odds: list[float]) -> bool:\n+        total = sum(self.implied_probability(o) for o in odds)\n+        return 1.0 <= total <= 1.0 + self.max_margin\n+\n     def settle(self, stake: float, odds: float) -> float:",
+          "files": [
+            "odds/calculator.py"
+          ],
+          "author": "carol"
+        },
+        "latency_ms": 320
+      },
+      {
+        "node_id": "review",
+        "agent": "llm-reviewer",
+        "type": "llm",
+        "input": {
+          "diff": "--- a/odds/calculator.py\n+++ b/odds/calculator.py\n@@ -14,3 +14,15 @@ class OddsCalculator:\n         return round(odds, 2)\n \n+    def apply_margin(self, fair_odds: list[float], margin: float) -> list[float]:\n+        total_prob = sum(1/o for o in fair_odds)\n+        target_prob = total_prob + margin\n+        return [o * total_prob / target_prob for o in fair_odds]\n+\n+    def implied_probability(self, odds: float) -> float:\n+        return 1 / odds\n+\n+    def validate_market(self, odds: list[float]) -> bool:\n+        total = sum(self.implied_probability(o) for o in odds)\n+        return 1.0 <= total <= 1.0 + self.max_margin\n+\n     def settle(self, stake: float, odds: float) -> float:",
+          "language": "python"
+        },
+        "output": {
+          "comments": [
+            {
+              "file": "odds/calculator.py",
+              "line": 16,
+              "body": "Signature and typing look good.",
+              "severity": "info"
+            },
+            {
+              "file": "odds/calculator.py",
+              "line": 17,
+              "body": "Division by zero if any odds value is 0, here and again at line 22. Add a guard that rejects odds <= 0 before computing.",
+              "severity": "error"
+            },
+            {
+              "file": "odds/calculator.py",
+              "line": 19,
+              "body": "Float arithmetic for probability sums here and at line 17; rounding accumulates across sum(1/o). Consider Decimal or document the tolerance.",
+              "severity": "warning"
+            }
+          ],
+          "summary": "Adds margin application and market validation. Two issues: no guard on zero or negative odds, and float precision in the probability sums.",
+          "issues_found": 2
+        },
+        "latency_ms": 4200,
+        "tokens": {
+          "input": 184,
+          "output": 170
+        }
+      },
+      {
+        "node_id": "post-comment",
+        "agent": "github",
+        "type": "tool",
+        "input": {
+          "repo": "superbet/odds-engine",
+          "pr": 312,
+          "body": "Adds margin application and market validation. Two issues: no guard on zero or negative odds, and float precision in the probability sums."
+        },
+        "output": {
+          "comment_id": 91823,
+          "posted": true
+        },
+        "latency_ms": 280
+      }
+    ]
+  },
+  {
+    "execution_id": "exec-002",
+    "graph_id": "pr-review",
+    "model_version": "v2.4",
+    "timestamp": "2026-09-13T15:10:00Z",
+    "nodes": [
+      {
+        "node_id": "fetch-diff",
+        "agent": "github",
+        "type": "tool",
+        "input": {
+          "repo": "superbet/checkout-api",
+          "pr": 487
+        },
+        "output": {
+          "diff": "--- a/payments/retry.go\n+++ b/payments/retry.go\n@@ -41,4 +41,11 @@ func (r *Retrier) Execute(ctx context.Context, payment Payment) error {\n \tlog.Printf(\"retrying payment %s\", payment.ID)\n-\tr.mu.Lock()\n-\tdefer r.mu.Unlock()\n+\tr.mu.RLock()\n+\tif r.inflight[payment.ID] {\n+\t\tr.mu.RUnlock()\n+\t\treturn ErrAlreadyInflight\n+\t}\n+\tr.mu.RUnlock()\n+\tr.mu.Lock()\n+\tr.inflight[payment.ID] = true\n+\tr.mu.Unlock()\n \treturn r.doRetry(ctx, payment)",
+          "files": [
+            "payments/retry.go"
+          ],
+          "author": "dave"
+        },
+        "latency_ms": 290
+      },
+      {
+        "node_id": "review",
+        "agent": "llm-reviewer",
+        "type": "llm",
+        "input": {
+          "diff": "--- a/payments/retry.go\n+++ b/payments/retry.go\n@@ -41,4 +41,11 @@ func (r *Retrier) Execute(ctx context.Context, payment Payment) error {\n \tlog.Printf(\"retrying payment %s\", payment.ID)\n-\tr.mu.Lock()\n-\tdefer r.mu.Unlock()\n+\tr.mu.RLock()\n+\tif r.inflight[payment.ID] {\n+\t\tr.mu.RUnlock()\n+\t\treturn ErrAlreadyInflight\n+\t}\n+\tr.mu.RUnlock()\n+\tr.mu.Lock()\n+\tr.inflight[payment.ID] = true\n+\tr.mu.Unlock()\n \treturn r.doRetry(ctx, payment)",
+          "language": "go"
+        },
+        "output": {
+          "comments": [
+            {
+              "file": "payments/retry.go",
+              "line": 41,
+              "body": "Log line unchanged; fine.",
+              "severity": "info"
+            },
+            {
+              "file": "payments/retry.go",
+              "line": 46,
+              "body": "The early-return branch reads clearly.",
+              "severity": "info"
+            },
+            {
+              "file": "payments/retry.go",
+              "line": 47,
+              "body": "Race between RUnlock (line 47) and Lock (line 48): two goroutines retrying the same payment.ID can both read inflight=false and both proceed. The read-check-then-write pattern does not prevent duplicates. Take the write lock once and check inside it.",
+              "severity": "error"
+            },
+            {
+              "file": "payments/retry.go",
+              "line": 51,
+              "body": "Removing `defer r.mu.Unlock()` means doRetry now runs with no lock held. If it touched shared state under the old lock this is a behaviour change, not only a contention win.",
+              "severity": "error"
+            },
+            {
+              "file": "payments/retry.go",
+              "line": 48,
+              "body": "No defer after the write Lock. If the map write panics (nil map) the mutex stays held. Use defer, or keep the critical section trivially non-panicking and say so.",
+              "severity": "warning"
+            }
+          ],
+          "summary": "Attempts to reduce lock contention by upgrading from RLock to Lock, but introduces a TOCTOU race between the read-check and the write-set and moves doRetry outside the lock. The original single Lock with defer was correct; consider a single Lock with early return, or sync.Map / a CAS on per-payment state.",
+          "issues_found": 3
+        },
+        "latency_ms": 5100,
+        "tokens": {
+          "input": 122,
+          "output": 334
+        }
+      },
+      {
+        "node_id": "post-comment",
+        "agent": "github",
+        "type": "tool",
+        "input": {
+          "repo": "superbet/checkout-api",
+          "pr": 487,
+          "body": "Attempts to reduce lock contention by upgrading from RLock to Lock, but introduces a TOCTOU race between the read-check and the write-set and moves doRetry outside the lock. The original single Lock with defer was correct; consider a single Lock with early return, or sync.Map / a CAS on per-payment state."
+        },
+        "output": {
+          "comment_id": 91901,
+          "posted": true
+        },
+        "latency_ms": 310
+      }
+    ]
+  },
+  {
+    "execution_id": "exec-003",
+    "graph_id": "incident-triage",
+    "model_version": "v2.4",
+    "timestamp": "2026-09-14T02:15:00Z",
+    "nodes": [
+      {
+        "node_id": "fetch-alert",
+        "agent": "pagerduty",
+        "type": "tool",
+        "input": {
+          "alert_id": "ALT-90412"
+        },
+        "output": {
+          "service": "payment-gateway",
+          "severity": "critical",
+          "description": "Error rate exceeded 15% on payment-gateway. 503 responses spiking. Downstream timeout from checkout-api.",
+          "triggered_at": "2026-09-14T02:14:55Z"
+        },
+        "latency_ms": 410
+      },
+      {
+        "node_id": "classify",
+        "agent": "llm-classifier",
+        "type": "llm",
+        "input": {
+          "service": "payment-gateway",
+          "severity": "critical",
+          "description": "Error rate exceeded 15% on payment-gateway. 503 responses spiking. Downstream timeout from checkout-api."
+        },
+        "output": {
+          "action": "page",
+          "reasoning": "Critical severity on payment-gateway with active customer impact. 503 spike indicates service degradation requiring immediate human intervention. Paging the payments on-call rota now rather than waiting for auto-recovery.",
+          "confidence": 0.94
+        },
+        "latency_ms": 1800,
+        "tokens": {
+          "input": 43,
+          "output": 67
+        }
+      },
+      {
+        "node_id": "page-oncall",
+        "agent": "pagerduty",
+        "type": "tool",
+        "input": {
+          "service": "payment-gateway",
+          "urgency": "high"
+        },
+        "output": {
+          "paged": true,
+          "oncall_user": "alice"
+        },
+        "latency_ms": 2100
+      }
+    ]
+  },
+  {
+    "execution_id": "exec-004",
+    "graph_id": "incident-triage",
+    "model_version": "v2.4",
+    "timestamp": "2026-09-14T03:45:00Z",
+    "nodes": [
+      {
+        "node_id": "fetch-alert",
+        "agent": "pagerduty",
+        "type": "tool",
+        "input": {
+          "alert_id": "ALT-90418"
+        },
+        "output": {
+          "service": "recommendation-engine",
+          "severity": "critical",
+          "description": "Synthetic canary check failing on recommendation-engine. Known flapping check, tracked in INC-4410. Real traffic unaffected: error rate 0.0%, p99 within SLO. Historically auto-resolves within 10 minutes.",
+          "triggered_at": "2026-09-14T03:44:30Z"
+        },
+        "latency_ms": 380
+      },
+      {
+        "node_id": "classify",
+        "agent": "llm-classifier",
+        "type": "llm",
+        "input": {
+          "service": "recommendation-engine",
+          "severity": "critical",
+          "description": "Synthetic canary check failing on recommendation-engine. Known flapping check, tracked in INC-4410. Real traffic unaffected: error rate 0.0%, p99 within SLO. Historically auto-resolves within 10 minutes."
+        },
+        "output": {
+          "action": "page",
+          "reasoning": "Critical severity on recommendation-engine. Paging per severity policy.",
+          "confidence": 0.91
+        },
+        "latency_ms": 1600,
+        "tokens": {
+          "input": 69,
+          "output": 30
+        }
+      },
+      {
+        "node_id": "page-oncall",
+        "agent": "pagerduty",
+        "type": "tool",
+        "input": {
+          "service": "recommendation-engine",
+          "urgency": "high"
+        },
+        "output": {
+          "paged": true,
+          "oncall_user": "alice"
+        },
+        "latency_ms": 1900
+      }
+    ]
+  },
+  {
+    "execution_id": "exec-005",
+    "graph_id": "pr-review",
+    "model_version": "v2.4",
+    "timestamp": "2026-09-14T09:30:00Z",
+    "nodes": [
+      {
+        "node_id": "fetch-diff",
+        "agent": "github",
+        "type": "tool",
+        "input": {
+          "repo": "superbet/user-service",
+          "pr": 201
+        },
+        "output": {
+          "diff": "--- a/auth/session.go\n+++ b/auth/session.go\n@@ -17,3 +17,14 @@ type SessionStore struct {\n \tsessions map[string]*Session\n }\n \n+func (s *SessionStore) GetOrCreate(userID string) (*Session, error) {\n+\ts.mu.Lock()\n+\tdefer s.mu.Unlock()\n+\tif sess, ok := s.sessions[userID]; ok {\n+\t\treturn sess, nil\n+\t}\n+\tsess := &Session{UserID: userID, CreatedAt: time.Now(), Token: generateToken()}\n+\ts.sessions[userID] = sess\n+\treturn sess, nil\n+}\n+",
+          "files": [
+            "auth/session.go"
+          ],
+          "author": "eve"
+        },
+        "latency_ms": 250
+      },
+      {
+        "node_id": "review",
+        "agent": "llm-reviewer",
+        "type": "llm",
+        "input": {
+          "diff": "--- a/auth/session.go\n+++ b/auth/session.go\n@@ -17,3 +17,14 @@ type SessionStore struct {\n \tsessions map[string]*Session\n }\n \n+func (s *SessionStore) GetOrCreate(userID string) (*Session, error) {\n+\ts.mu.Lock()\n+\tdefer s.mu.Unlock()\n+\tif sess, ok := s.sessions[userID]; ok {\n+\t\treturn sess, nil\n+\t}\n+\tsess := &Session{UserID: userID, CreatedAt: time.Now(), Token: generateToken()}\n+\ts.sessions[userID] = sess\n+\treturn sess, nil\n+}\n+",
+          "language": "go"
+        },
+        "output": {
+          "comments": [
+            {
+              "file": "auth/session.go",
+              "line": 21,
+              "body": "Good use of mutex for thread safety.",
+              "severity": "info"
+            },
+            {
+              "file": "auth/session.go",
+              "line": 27,
+              "body": "Consider adding a TTL or max sessions limit to prevent memory growth.",
+              "severity": "warning"
+            }
+          ],
+          "summary": "Simple session get-or-create with proper mutex usage. Consider adding session expiry.",
+          "issues_found": 1
+        },
+        "latency_ms": 3800,
+        "tokens": {
+          "input": 121,
+          "output": 91
+        }
+      },
+      {
+        "node_id": "post-comment",
+        "agent": "github",
+        "type": "tool",
+        "input": {
+          "repo": "superbet/user-service",
+          "pr": 201,
+          "body": "Simple session get-or-create with proper mutex usage. Consider adding session expiry."
+        },
+        "output": {
+          "comment_id": 92010,
+          "posted": true
+        },
+        "latency_ms": 270
+      }
+    ]
+  },
+  {
+    "execution_id": "exec-006",
+    "graph_id": "pr-review",
+    "model_version": "v2.4",
+    "timestamp": "2026-09-14T09:55:00Z",
+    "nodes": [
+      {
+        "node_id": "fetch-diff",
+        "agent": "github",
+        "type": "tool",
+        "input": {
+          "repo": "superbet/user-service",
+          "pr": 214
+        },
+        "output": {
+          "diff": "--- a/users/repo.go\n+++ b/users/repo.go\n@@ -29,3 +29,13 @@ func (r *Repo) FindByID(ctx context.Context, id string) (*User, error) {\n \treturn &u, nil\n }\n \n+func (r *Repo) FindByEmail(ctx context.Context, email string) (*User, error) {\n+\tq := fmt.Sprintf(\"SELECT id, email, role FROM users WHERE email = '%s'\", email)\n+\trow := r.db.QueryRowContext(ctx, q)\n+\tvar u User\n+\tif err := row.Scan(&u.ID, &u.Email, &u.Role); err != nil {\n+\t\treturn nil, err\n+\t}\n+\treturn &u, nil\n+}\n+",
+          "files": [
+            "users/repo.go"
+          ],
+          "author": "frank"
+        },
+        "latency_ms": 240
+      },
+      {
+        "node_id": "review",
+        "agent": "llm-reviewer",
+        "type": "llm",
+        "input": {
+          "diff": "--- a/users/repo.go\n+++ b/users/repo.go\n@@ -29,3 +29,13 @@ func (r *Repo) FindByID(ctx context.Context, id string) (*User, error) {\n \treturn &u, nil\n }\n \n+func (r *Repo) FindByEmail(ctx context.Context, email string) (*User, error) {\n+\tq := fmt.Sprintf(\"SELECT id, email, role FROM users WHERE email = '%s'\", email)\n+\trow := r.db.QueryRowContext(ctx, q)\n+\tvar u User\n+\tif err := row.Scan(&u.ID, &u.Email, &u.Role); err != nil {\n+\t\treturn nil, err\n+\t}\n+\treturn &u, nil\n+}\n+",
+          "language": "go"
+        },
+        "output": {
+          "comments": [
+            {
+              "file": "users/repo.go",
+              "line": 33,
+              "body": "SQL injection: `email` is interpolated into the query with fmt.Sprintf. Use a parameterised query: r.db.QueryRowContext(ctx, \"SELECT id, email, role FROM users WHERE email = $1\", email). Must be fixed before merge.",
+              "severity": "error"
+            }
+          ],
+          "summary": "Adds FindByEmail. One blocking issue: the query is built by string formatting with user input, which is a SQL injection.",
+          "issues_found": 1
+        },
+        "latency_ms": 3100,
+        "tokens": {
+          "input": 131,
+          "output": 111
+        }
+      },
+      {
+        "node_id": "post-comment",
+        "agent": "github",
+        "type": "tool",
+        "input": {
+          "repo": "superbet/user-service",
+          "pr": 214,
+          "body": "Adds FindByEmail. One blocking issue: the query is built by string formatting with user input, which is a SQL injection."
+        },
+        "output": {
+          "comment_id": 92044,
+          "posted": true
+        },
+        "latency_ms": 260
+      }
+    ]
+  }
+]
